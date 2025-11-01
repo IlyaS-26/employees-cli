@@ -1,5 +1,7 @@
 import { Pool } from "pg";
 
+import { Employee } from "../employee/employee.js";
+
 export class Repository {
 
     private pool: Pool;
@@ -8,7 +10,7 @@ export class Repository {
         this.pool = pool;
     }
 
-    public async createTable(): Promise<void>{
+    public async createTable(): Promise<void> {
         await this.pool.query(`
             CREATE SCHEMA IF NOT EXISTS app;
             
@@ -16,9 +18,27 @@ export class Repository {
                 id BIGSERIAL PRIMARY KEY,
                 last_name TEXT NOT NULL,
                 first_name TEXT NOT NULL,
-                middle_name TEXT NOT NULL,
+                middle_name TEXT,
                 birth_date DATE NOT NULL,
                 gender TEXT NOT NULL CHECK (gender IN ('Male', 'Female'))
+            );
+        `);
+    }
+
+    public async insert(employee: Employee): Promise<void> {
+        await this.pool.query(`
+            INSERT INTO app (
+                last_name,
+                first_name,
+                middle_name,
+                birth_date,
+                gender)
+            ) VALUES (
+                ${employee.lastName},
+                ${employee.firstName},
+                ${employee.middleName},
+                ${employee.birthDate},
+                ${employee.gender}
             );
         `);
     }
