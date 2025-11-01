@@ -1,0 +1,9 @@
+# ENV 
+.env
+
+# Artifacts and dependencies
+dist/
+node_modules/
+
+# VSC
+.vscode/
