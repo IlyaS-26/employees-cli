@@ -14,7 +14,7 @@ export class Repository {
         await this.pool.query(`
             CREATE SCHEMA IF NOT EXISTS app;
             
-            CREATE TABLE IF NOT EXISTS employees(
+            CREATE TABLE IF NOT EXISTS app.employees (
                 id BIGSERIAL PRIMARY KEY,
                 last_name TEXT NOT NULL,
                 first_name TEXT NOT NULL,
@@ -26,20 +26,30 @@ export class Repository {
     }
 
     public async insert(employee: Employee): Promise<void> {
-        await this.pool.query(`
-            INSERT INTO app (
+        const sql = `
+            INSERT INTO app.employees (
                 last_name,
                 first_name,
                 middle_name,
                 birth_date,
-                gender)
+                gender 
             ) VALUES (
-                ${employee.lastName},
-                ${employee.firstName},
-                ${employee.middleName},
-                ${employee.birthDate},
-                ${employee.gender}
-            );
-        `);
+                $1,
+                $2,
+                $3,
+                $4,
+                $5
+            )
+        `;
+
+        const values = [
+            employee.lastName,
+            employee.firstName,
+            employee.middleName,
+            employee.birthDate,
+            employee.gender
+        ];
+
+        await this.pool.query(sql, values);
     }
 }
