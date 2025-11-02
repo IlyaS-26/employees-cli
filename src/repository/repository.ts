@@ -53,14 +53,25 @@ export class Repository {
         await this.pool.query(sql, values);
     }
 
+    /**
+     * Сортируем по уникальным ФИО и дате рождения
+     * Детерминируем выбор по DESC id при дубликатах
+     */
     public async listSortedEmployees(): Promise<void> {
         const { rows } = await this.pool.query(`
-            SELECT DISTINCT last_name, first_name, middle_name, 
-                to_char(birth_date, 'YYYY-MM-DD') as birth_date, gender FROM app.employees
-                ORDER BY last_name DESC, first_name DESC, middle_name DESC; 
+            SELECT last_name, first_name, middle_name, 
+                TO_CHAR(birth_date, 'YYYY-MM-DD') as birth_date,
+                gender
+            FROM (
+                SELECT DISTINCT ON (last_name, first_name, middle_name, birth_date)
+                    last_name, first_name, middle_name, birth_date, gender, id
+                FROM app.employees
+                ORDER BY last_name, first_name, middle_name, birth_date, id DESC
+            ) t
+            ORDER BY last_name, first_name, middle_name NULLS LAST; 
         `);
         rows.forEach((value) => {
-            console.log(`${value.last_name} ${value.first_name} ${value.middle_name} ${value.birth_date} ${value.gender} ${Employee.ageFromBirthDate(value.birth_date)}`);
+            console.log(`${value.last_name} ${value.first_name} ${value.middle_name ?? ""} ${value.birth_date} ${value.gender} ${Employee.ageFromBirthDate(value.birth_date)}`.replace(/\s+/g, " "));
         });
     }
 }

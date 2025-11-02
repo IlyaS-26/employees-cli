@@ -13,7 +13,7 @@ export class Employee {
     constructor(
         repository: Repository,
         firstName: string,
-        middleName: string,
+        middleName: string | null,
         lastName: string,
         birthDate: string,
         gender: string
