@@ -52,4 +52,15 @@ export class Repository {
 
         await this.pool.query(sql, values);
     }
+
+    public async listSortedEmployees(): Promise<void> {
+        const { rows } = await this.pool.query(`
+            SELECT DISTINCT last_name, first_name, middle_name, 
+                to_char(birth_date, 'YYYY-MM-DD') as birth_date, gender FROM app.employees
+                ORDER BY last_name DESC, first_name DESC, middle_name DESC; 
+        `);
+        rows.forEach((value) => {
+            console.log(`${value.last_name} ${value.first_name} ${value.middle_name} ${value.birth_date} ${value.gender} ${Employee.ageFromBirthDate(value.birth_date)}`);
+        });
+    }
 }

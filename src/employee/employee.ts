@@ -30,9 +30,9 @@ export class Employee {
         await this.repository.insert(this);
     }
 
-    public ageFromBirthDate(): number {
+    public static ageFromBirthDate(birthDate: Date): number {
         const currentDate = new Date();
-        const employeeDate = new Date(this.birthDate);
+        const employeeDate = new Date(birthDate);
 
         let age: number = currentDate.getFullYear() - employeeDate.getFullYear();
 
