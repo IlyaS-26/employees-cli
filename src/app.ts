@@ -15,8 +15,9 @@ async function main() {
 
     const repository = new Repository(pool);
     const employee = new Employee(repository, "Dima", "Korablev", "Alexeevich", "2000-03-15", "Male");
+
     await repository.createTable();
-    await employee.saveToRepo();
+    await repository.insertMill();
     await repository.listSortedEmployees();
 }
 
