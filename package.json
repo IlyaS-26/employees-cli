@@ -2,9 +2,11 @@
   "name": "employees-cli",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "dist/app.js",
   "type": "module",
   "scripts": {
+    "build": "tsc && shx mkdir -p dist/repository/samples && shx cp -r src/repository/samples/. dist/repository/samples/",
+    "start": "node dist/app.js",
     "dev": "nodemon dist/app.js"
   },
   "keywords": [],
@@ -14,6 +16,7 @@
     "@types/node": "^24.9.2",
     "@types/pg": "^8.15.6",
     "nodemon": "^3.1.10",
+    "shx": "^0.4.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   },

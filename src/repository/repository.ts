@@ -83,10 +83,11 @@ export class Repository {
     public async insertMill(): Promise<void> {
         try {
             const dirname = path.dirname(fileURLToPath(import.meta.url));
+            const samplesDir = path.join(dirname, "samples");
 
-            const pathToFirstMiddleNamesFemale = path.join(dirname, "../../src/repository/samples/first-middle-names-female.txt");
-            const pathToFirstMiddleNamesMale = path.join(dirname, "../../src/repository/samples/first-middle-names-male.txt");
-            const pathToLastNames = path.join(dirname, "../../src/repository/samples/last-names.txt");
+            const pathToFirstMiddleNamesFemale = path.join(samplesDir, "first-middle-names-female.txt");
+            const pathToFirstMiddleNamesMale = path.join(samplesDir, "first-middle-names-male.txt");
+            const pathToLastNames = path.join(samplesDir, "last-names.txt");
 
             const firstMale: Buckets = new Map();
             const firstFemale: Buckets = new Map();
