@@ -30,10 +30,6 @@ export class Employee {
         await this.repository.insert(this);
     }
 
-    /**
-     * Сортируем по уникальным ФИО и дате рождения
-     * Детерминируем выбор по DESC id при дубликатах
-     */
     public static ageFromBirthDate(birthDate: Date): number {
         const currentDate = new Date();
         const employeeDate = new Date(birthDate);

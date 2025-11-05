@@ -34,7 +34,6 @@ export class Repository {
         } catch (err) {
             throw err;
         }
-
         try {
             await this.pool.query(`
                 CREATE INDEX CONCURRENTLY IF NOT EXISTS employee_male_lastname_idx
@@ -45,7 +44,6 @@ export class Repository {
         } catch (err) {
             throw err;
         }
-
         console.log("Таблица app.employees успешно создана!");
     }
 
@@ -202,6 +200,10 @@ export class Repository {
         }
     }
 
+    /**
+      * Сортируем по уникальным ФИО и дате рождения
+      * Детерминируем выбор по DESC id при дубликатах
+      */
     public async listSortedEmployees(): Promise<void> {
         try {
             const { rows } = await this.pool.query(`
