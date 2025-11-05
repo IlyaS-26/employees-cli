@@ -3,6 +3,7 @@ import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import readline from "node:readline";
+import { performance } from "node:perf_hooks";
 
 import { Employee } from "../employee/employee.js";
 
@@ -17,18 +18,35 @@ export class Repository {
     }
 
     public async createTable(): Promise<void> {
-        await this.pool.query(`
-            CREATE SCHEMA IF NOT EXISTS app;
-            
-            CREATE TABLE IF NOT EXISTS app.employees (
-                id BIGSERIAL PRIMARY KEY,
-                last_name TEXT NOT NULL,
-                first_name TEXT NOT NULL,
-                middle_name TEXT NOT NULL,
-                birth_date DATE NOT NULL,
-                gender TEXT NOT NULL CHECK (gender IN ('Male', 'Female'))
-            );
-        `);
+        try {
+            await this.pool.query(`
+                CREATE SCHEMA IF NOT EXISTS app;
+                
+                CREATE TABLE IF NOT EXISTS app.employees (
+                    id BIGSERIAL PRIMARY KEY,
+                    last_name TEXT NOT NULL,
+                    first_name TEXT NOT NULL,
+                    middle_name TEXT NOT NULL,
+                    birth_date DATE NOT NULL,
+                    gender TEXT NOT NULL CHECK (gender IN ('Male', 'Female'))
+                );
+            `);
+        } catch (err) {
+            throw err;
+        }
+
+        try {
+            await this.pool.query(`
+                CREATE INDEX CONCURRENTLY IF NOT EXISTS employee_male_lastname_idx
+                ON app.employees (last_name text_pattern_ops)
+                INCLUDE (first_name, middle_name, birth_date)
+                WHERE gender = 'Male';
+            `);
+        } catch (err) {
+            throw err;
+        }
+
+        console.log("Таблица app.employees успешно создана!");
     }
 
     public async insert(employee: Employee): Promise<void> {
@@ -55,92 +73,100 @@ export class Repository {
             employee.employeeRaw.birthDate,
             employee.employeeRaw.gender
         ];
-
-        await this.pool.query(sql, values);
+        try {
+            await this.pool.query(sql, values);
+        } catch (err) {
+            throw err;
+        }
     }
 
     public async insertMill(): Promise<void> {
+        try {
+            const dirname = path.dirname(fileURLToPath(import.meta.url));
 
-        const dirname = path.dirname(fileURLToPath(import.meta.url));
+            const pathToFirstMiddleNamesFemale = path.join(dirname, "../../src/repository/samples/first-middle-names-female.txt");
+            const pathToFirstMiddleNamesMale = path.join(dirname, "../../src/repository/samples/first-middle-names-male.txt");
+            const pathToLastNames = path.join(dirname, "../../src/repository/samples/last-names.txt");
 
-        const pathToFirstMiddleNamesFemale = path.join(dirname, "../../src/repository/samples/first-middle-names-female.txt");
-        const pathToFirstMiddleNamesMale = path.join(dirname, "../../src/repository/samples/first-middle-names-male.txt");
-        const pathToLastNames = path.join(dirname, "../../src/repository/samples/last-names.txt");
+            const firstMale: Buckets = new Map();
+            const firstFemale: Buckets = new Map();
+            const lastNames: Buckets = new Map();
 
-        const firstMale: Buckets = new Map();
-        const firstFemale: Buckets = new Map();
-        const lastNames: Buckets = new Map();
+            await this.fillTheBucket(firstMale, pathToFirstMiddleNamesMale);
+            firstMale.forEach((value) => {
+                this.shuffle(value.items);
+            });
+            await this.fillTheBucket(firstFemale, pathToFirstMiddleNamesFemale);
+            firstFemale.forEach((value) => {
+                this.shuffle(value.items);
+            });
+            await this.fillTheBucket(lastNames, pathToLastNames);
+            lastNames.forEach((value) => {
+                this.shuffle(value.items);
+            });
 
-        await this.fillTheBucket(firstMale, pathToFirstMiddleNamesMale);
-        firstMale.forEach((value) => {
-            this.shuffle(value.items);
-        });
-        await this.fillTheBucket(firstFemale, pathToFirstMiddleNamesFemale);
-        firstFemale.forEach((value) => {
-            this.shuffle(value.items);
-        });
-        await this.fillTheBucket(lastNames, pathToLastNames);
-        lastNames.forEach((value) => {
-            this.shuffle(value.items);
-        });
+            let letterIndex: number = 0;
+            let letterIndexMiddle: number = 1;
+            let genderChoice: number = 0;
+            const batch: EmployeeRaw[] = [];
 
-        let letterIndex: number = 0;
-        let letterIndexMiddle: number = 1;
-        let genderChoice: number = 0;
-        const batch: EmployeeRaw[] = [];
+            const BATCH_SIZE = 5_000;
+            const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
-        const BATCH_SIZE = 5_000;
-        const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+            for (let i = 0; i < 1_000_000; i++) {
 
-        for (let i = 0; i < 1_000_000; i++) {
+                let gender: "Male" | "Female" = genderChoice === 0 ? "Female" : "Male";
+                let firstName: string = "";
+                let middleName: string = "";
+                let lastName: string = "";
 
-            let gender: string = genderChoice === 0 ? "Female" : "Male";
-            let firstName: string = "";
-            let middleName: string = "";
-            let lastName: string = "";
+                const maleOrFemaleBracket: Buckets = gender === "Male" ? firstMale : firstFemale;
 
-            const maleOrFemaleBracket: Buckets = gender === "Male" ? firstMale : firstFemale;
+                const bFirst = maleOrFemaleBracket.get(ALPHABET[letterIndex]!);
+                const bMiddle = maleOrFemaleBracket.get(ALPHABET[letterIndexMiddle]!);
+                const bLast = lastNames.get(ALPHABET[letterIndex]!);
 
-            const bFirst = maleOrFemaleBracket.get(ALPHABET[letterIndex]!);
-            const bMiddle = maleOrFemaleBracket.get(ALPHABET[letterIndexMiddle]!);
-            const bLast = lastNames.get(ALPHABET[letterIndex]!);
+                if (bFirst && bMiddle && bLast) {
 
-            if (bFirst && bMiddle && bLast) {
+                    let { pointerFirst } = bFirst;
+                    let { pointerMiddle } = bMiddle;
+                    let { pointerFirst: pointerLast } = bLast;
 
-                let { pointerFirst } = bFirst;
-                let { pointerMiddle } = bMiddle;
-                let { pointerFirst: pointerLast } = bLast;
+                    firstName = bFirst.items[pointerFirst]!;
+                    bFirst.pointerFirst = (bFirst.pointerFirst + 1) % bFirst.items.length;
 
-                firstName = bFirst.items[pointerFirst]!;
-                bFirst.pointerFirst = (bFirst.pointerFirst + 1) % bFirst.items.length;
+                    middleName = bMiddle.items[pointerMiddle]!;
+                    bMiddle.pointerMiddle = (bMiddle.pointerMiddle + 1) % bMiddle.items.length;
 
-                middleName = bMiddle.items[pointerMiddle]!;
-                bMiddle.pointerMiddle = (bMiddle.pointerMiddle + 1) % bMiddle.items.length;
+                    lastName = bLast.items[pointerLast]!;
+                    bLast.pointerFirst = (bLast.pointerFirst + 1) % bLast.items.length;
+                }
 
-                lastName = bLast.items[pointerLast]!;
-                bLast.pointerFirst = (bLast.pointerFirst + 1) % bLast.items.length;
+                const employeeRaw: EmployeeRaw = {
+                    firstName,
+                    middleName,
+                    lastName,
+                    gender,
+                    birthDate: this.randomDate()
+                }
+
+                batch.push(employeeRaw);
+
+                if (batch.length === BATCH_SIZE) {
+                    await this.batchSend(batch);
+                    batch.length = 0;
+                }
+
+                letterIndex = (letterIndex + 1) % 26;
+                letterIndexMiddle = (letterIndexMiddle + 1) % 26;
+                genderChoice = genderChoice === 0 ? 1 : 0;
             }
-
-            const employeeRaw: EmployeeRaw = {
-                firstName,
-                middleName,
-                lastName,
-                gender,
-                birthDate: this.randomDate()
-            }
-
-            batch.push(employeeRaw);
-
-            if (batch.length === BATCH_SIZE) {
-                await this.batchSend(batch);
-                batch.length = 0;
-            }
-
-            letterIndex = (letterIndex + 1) % 26;
-            letterIndexMiddle = (letterIndexMiddle + 1) % 26;
-            genderChoice = genderChoice === 0 ? 1 : 0;
+            console.log("Вставка миллиона объектов прошла успешно!");
+        } catch (err) {
+            throw err;
         }
     }
+
     /**
      * Для вставки массива объектов используем multi-insert
      */
@@ -168,51 +194,92 @@ export class Repository {
                 ${placeholders.join(",")}
         `;
 
-        await this.pool.query(sql, values);
+        try {
+            await this.pool.query(sql, values);
+        } catch (err) {
+            throw err;
+        }
     }
 
     public async listSortedEmployees(): Promise<void> {
-        const { rows } = await this.pool.query(`
-            SELECT last_name, first_name, middle_name, 
-                TO_CHAR(birth_date, 'YYYY-MM-DD') as birth_date,
-                gender
-            FROM (
-                SELECT DISTINCT ON (last_name, first_name, middle_name, birth_date)
-                    last_name, first_name, middle_name, birth_date, gender, id
+        try {
+            const { rows } = await this.pool.query(`
+                SELECT last_name, first_name, middle_name, 
+                    TO_CHAR(birth_date, 'YYYY-MM-DD') as birth_date,
+                    gender
+                FROM (
+                    SELECT DISTINCT ON (last_name, first_name, middle_name, birth_date)
+                        last_name, first_name, middle_name, birth_date, gender, id
+                    FROM app.employees
+                    ORDER BY last_name, first_name, middle_name, birth_date, id DESC
+                ) t
+                ORDER BY last_name, first_name, middle_name; 
+            `);
+
+            rows.forEach((value) => {
+                console.log(`${value.last_name} ${value.first_name} ${value.middle_name} ${value.birth_date} ${value.gender} ${Employee.ageFromBirthDate(value.birth_date)}`);
+            });
+        } catch (err) {
+            throw err;
+        }
+    }
+
+    public async listMale(): Promise<void> {
+        try {
+            const start = performance.now();
+
+            const { rows } = await this.pool.query(` 
+                SELECT last_name, first_name, middle_name, 
+                    TO_CHAR(birth_date, 'YYYY-MM-DD') as birth_date,
+                    gender
                 FROM app.employees
-                ORDER BY last_name, first_name, middle_name, birth_date, id DESC
-            ) t
-            ORDER BY last_name, first_name, middle_name NULLS LAST; 
-        `);
-        rows.forEach((value) => {
-            console.log(`${value.last_name} ${value.first_name} ${value.middle_name} ${value.birth_date} ${value.gender} ${Employee.ageFromBirthDate(value.birth_date)}`.replace(/\s+/g, " "));
-        });
+                WHERE gender = 'Male' AND last_name LIKE 'F%'
+            `);
+
+            const end = performance.now();
+
+            rows.forEach((value) => {
+                console.log(`${value.last_name} ${value.first_name} ${value.middle_name} ${value.birth_date} ${value.gender}`);
+            });
+
+            const elapsed = end - start;
+            console.log(`\nВремя выполенения запроса: ${elapsed.toFixed(4)} мс`);
+        } catch (err) {
+            throw err;
+        }
     }
 
     private async fillTheBucket(bucket: Buckets, path: string): Promise<void> {
-        const reader = fs.createReadStream(path);
-        const readLine = readline.createInterface({
-            input: reader,
-            crlfDelay: Infinity
-        });
+        try {
+            const reader = fs.createReadStream(path);
+            const readLine = readline.createInterface({
+                input: reader,
+                crlfDelay: Infinity
+            });
 
-        for await (const line of readLine) {
-            const name: string = line.trim();
-            if (!name) continue;
+            reader.on("error", (err) => readLine.close());
+            readLine.on("error", (err) => reader.destroy(err));
 
-            const letter: string = name[0]!.toUpperCase();
+            for await (const line of readLine) {
+                const name: string = line.trim();
+                if (!name) continue;
 
-            if (!bucket.has(letter)) {
-                const newBucket: Bucket = {
-                    items: [],
-                    pointerFirst: 0,
-                    pointerMiddle: 0
-                };
-                bucket.set(letter, newBucket);
+                const letter: string = name[0]!.toUpperCase();
+
+                if (!bucket.has(letter)) {
+                    const newBucket: Bucket = {
+                        items: [],
+                        pointerFirst: 0,
+                        pointerMiddle: 0
+                    };
+                    bucket.set(letter, newBucket);
+                }
+
+                const b = bucket.get(letter);
+                b?.items.push(name);
             }
-
-            const b = bucket.get(letter);
-            b?.items.push(name);
+        } catch (err) {
+            throw err;
         }
     }
 

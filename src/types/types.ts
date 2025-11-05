@@ -10,6 +10,6 @@ export type EmployeeRaw = {
     firstName: string;
     middleName: string;
     lastName: string;
-    gender: string;
+    gender: "Male" | "Female";
     birthDate: string;
 }

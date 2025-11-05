@@ -14,7 +14,7 @@ export class Employee {
         middleName: string,
         lastName: string,
         birthDate: string,
-        gender: string
+        gender: "Male" | "Female"
     ) {
         this.repository = repository;
         this.employeeRaw = {
